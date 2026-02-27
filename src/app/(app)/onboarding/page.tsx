@@ -33,7 +33,7 @@ export default async function MyTasksPage() {
 
   // Supabase returns a complex inferred type for joined queries;
   // cast to the shared AssignmentWithSOP shape used by TrainingChecklist.
-  const assignments = (rawAssignments ?? []) as AssignmentWithSOP[]
+  const assignments = (rawAssignments ?? []) as unknown as AssignmentWithSOP[]
 
   // Fetch completed steps for this user
   const assignmentIds = assignments.map((a) => a.id)

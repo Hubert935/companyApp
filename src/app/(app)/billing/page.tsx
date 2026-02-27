@@ -21,7 +21,7 @@ export default async function BillingPage() {
   const { data: company } = await supabase
     .from('companies')
     .select('*')
-    .eq('id', profile.company_id)
+    .eq('id', profile.company_id as string)
     .single()
 
   const isActive = ['trialing', 'active'].includes(company?.subscription_status ?? '')

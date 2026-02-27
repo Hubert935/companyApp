@@ -137,8 +137,7 @@ export default function SOPEditor({ companyId, userId, initialSOP }: SOPEditorPr
       router.push('/sops')
       router.refresh()
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to save SOP'
-      setError(errorMessage)
+      setError(err instanceof Error ? err.message : 'Failed to save SOP')
     } finally {
       setSaving(false)
     }

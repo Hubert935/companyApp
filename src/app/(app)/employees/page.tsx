@@ -24,14 +24,14 @@ export default async function EmployeesPage() {
     supabase
       .from('profiles')
       .select('*')
-      .eq('company_id', profile.company_id)
+      .eq('company_id', profile.company_id as string)
       .neq('id', user.id)
       .order('created_at', { ascending: true }),
 
     supabase
       .from('sops')
       .select('id, title')
-      .eq('company_id', profile.company_id)
+      .eq('company_id', profile.company_id as string)
       .eq('is_archived', false)
       .order('title'),
 

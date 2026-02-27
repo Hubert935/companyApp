@@ -29,9 +29,9 @@ export default async function DashboardPage() {
 
   const [sopsResult, employeesResult, assignmentsResult] = await Promise.all([
     supabase.from('sops').select('id', { count: 'exact' })
-      .eq('company_id', profile.company_id).eq('is_archived', false),
+      .eq('company_id', profile.company_id as string).eq('is_archived', false),
     supabase.from('profiles').select('id', { count: 'exact' })
-      .eq('company_id', profile.company_id).neq('role', 'owner'),
+      .eq('company_id', profile.company_id as string).neq('role', 'owner'),
     supabase.from('assignments')
       .select(`id, completed_at, due_date, created_at,
         employee:profiles!assignments_employee_id_fkey(full_name, email),
@@ -47,7 +47,7 @@ export default async function DashboardPage() {
   const completionRate       = totalAssignments > 0
     ? Math.round((completedAssignments / totalAssignments) * 100) : 0
 
-  const recentAssignments = (assignmentsResult.data ?? []) as RecentAssignment[]
+  const recentAssignments = (assignmentsResult.data ?? []) as unknown as RecentAssignment[]
   const sopCount          = sopsResult.count ?? 0
   const employeeCount     = employeesResult.count ?? 0
 

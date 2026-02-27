@@ -1,12 +1,14 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { Plus, BookOpen, Pencil, Archive } from 'lucide-react'
+import { Plus, BookOpen, Pencil } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import EmptyState from '@/components/ui/EmptyState'
 import { formatDate } from '@/lib/utils'
 import type { SOP } from '@/types'
+
+type SOPWithStepCount = SOP & { steps: { id: string }[] }
 
 export default async function SOPsPage() {
   const supabase = await createClient()
@@ -19,16 +21,18 @@ export default async function SOPsPage() {
     .eq('id', user.id)
     .single()
 
-  if (!profile) redirect('/auth/login')
+  if (!profile || !profile.company_id) redirect('/auth/login')
 
   const canEdit = profile.role === 'owner' || profile.role === 'manager'
 
-  const { data: sops } = await supabase
+  const { data: rawSops } = await supabase
     .from('sops')
     .select('*, steps:sop_steps(id)')
     .eq('company_id', profile.company_id)
     .eq('is_archived', false)
     .order('created_at', { ascending: false })
+
+  const sops = (rawSops ?? []) as unknown as SOPWithStepCount[]
 
   return (
     <div className="space-y-6">
@@ -47,7 +51,7 @@ export default async function SOPsPage() {
         )}
       </div>
 
-      {!sops || sops.length === 0 ? (
+      {sops.length === 0 ? (
         <EmptyState
           icon={BookOpen}
           title="No SOPs yet"
@@ -65,7 +69,7 @@ export default async function SOPsPage() {
         />
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
-          {sops.map((sop: SOP & { steps: { id: string }[] }) => (
+          {sops.map((sop) => (
             <Link
               key={sop.id}
               href={`/sops/${sop.id}`}

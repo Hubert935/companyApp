@@ -89,8 +89,8 @@ export async function POST(request: Request) {
 
     case 'invoice.payment_failed': {
       const invoice = event.data.object as Stripe.Invoice
-      // `subscription` is string | Stripe.Subscription | null in Stripe v20
-      const sub = invoice.subscription
+      // In Stripe v20 the subscription moved to parent.subscription_details.subscription
+      const sub = invoice.parent?.subscription_details?.subscription
       const subscriptionId = typeof sub === 'string' ? sub : sub?.id ?? null
       if (subscriptionId) {
         await supabase

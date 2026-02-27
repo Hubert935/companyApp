@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import SOPEditor from '@/components/sops/SOPEditor'
 import SOPDetail from '@/components/sops/SOPDetail'
+import type { SOPWithSteps } from '@/types'
 
 interface Props {
   params: Promise<{ id: string }>
@@ -19,21 +20,22 @@ export default async function SOPPage({ params }: Props) {
     .eq('id', user.id)
     .single()
 
-  if (!profile) redirect('/auth/login')
+  if (!profile || !profile.company_id) redirect('/auth/login')
 
-  const { data: sop } = await supabase
+  const { data: rawSop } = await supabase
     .from('sops')
     .select('*, steps:sop_steps(*)')
     .eq('id', id)
     .eq('company_id', profile.company_id)
     .single()
 
-  if (!sop) notFound()
+  if (!rawSop) notFound()
+
+  // Cast through unknown — Supabase can't infer joined shapes without Relationships
+  const sop = rawSop as unknown as SOPWithSteps
 
   // Sort steps by position
-  if (sop.steps) {
-    sop.steps.sort((a: { position: number }, b: { position: number }) => a.position - b.position)
-  }
+  sop.steps?.sort((a, b) => a.position - b.position)
 
   const canEdit = profile.role === 'owner' || profile.role === 'manager'
 
@@ -45,7 +47,7 @@ export default async function SOPPage({ params }: Props) {
           <p className="text-sm text-gray-500 mt-1">Update steps and content</p>
         </div>
         <SOPEditor
-          companyId={profile.company_id!}
+          companyId={profile.company_id}
           userId={user.id}
           initialSOP={sop}
         />
