@@ -14,39 +14,50 @@ export type { Database, Tables, TablesInsert, TablesUpdate, Enums }
 export type UserRole           = Enums<'user_role'>           // 'owner' | 'manager' | 'employee'
 export type InviteRole         = Enums<'invite_role'>         // 'manager' | 'employee'
 export type SubscriptionStatus = Enums<'subscription_status'> // 'trialing' | 'active' | ...
+export type CategoryColor      = Enums<'category_color'>      // 'blue' | 'green' | 'orange' | 'purple' | 'red' | 'gray'
+export type StepType           = Enums<'step_type'>           // 'instruction' | 'video' | 'acknowledgement'
 
 // ----------------------------------------------------------
 // Row types  (what you get back from SELECT *)
 // ----------------------------------------------------------
 export type Company        = Tables<'companies'>
 export type Profile        = Tables<'profiles'>
+export type SOPCategory    = Tables<'sop_categories'>
 export type SOP            = Tables<'sops'>
 export type SOPStep        = Tables<'sop_steps'>
 export type Assignment     = Tables<'assignments'>
 export type StepCompletion = Tables<'step_completions'>
 export type Invite         = Tables<'invites'>
+export type SOPBundle      = Tables<'sop_bundles'>
+export type BundleSOP      = Tables<'bundle_sops'>
 
 // ----------------------------------------------------------
 // Insert types  (shape expected by INSERT)
 // ----------------------------------------------------------
 export type NewCompany        = TablesInsert<'companies'>
 export type NewProfile        = TablesInsert<'profiles'>
+export type NewSOPCategory    = TablesInsert<'sop_categories'>
 export type NewSOP            = TablesInsert<'sops'>
 export type NewSOPStep        = TablesInsert<'sop_steps'>
 export type NewAssignment     = TablesInsert<'assignments'>
 export type NewStepCompletion = TablesInsert<'step_completions'>
 export type NewInvite         = TablesInsert<'invites'>
+export type NewSOPBundle      = TablesInsert<'sop_bundles'>
+export type NewBundleSOP      = TablesInsert<'bundle_sops'>
 
 // ----------------------------------------------------------
 // Update types  (all fields optional, used by UPDATE)
 // ----------------------------------------------------------
 export type UpdateCompany        = TablesUpdate<'companies'>
 export type UpdateProfile        = TablesUpdate<'profiles'>
+export type UpdateSOPCategory    = TablesUpdate<'sop_categories'>
 export type UpdateSOP            = TablesUpdate<'sops'>
 export type UpdateSOPStep        = TablesUpdate<'sop_steps'>
 export type UpdateAssignment     = TablesUpdate<'assignments'>
 export type UpdateStepCompletion = TablesUpdate<'step_completions'>
 export type UpdateInvite         = TablesUpdate<'invites'>
+export type UpdateSOPBundle      = TablesUpdate<'sop_bundles'>
+export type UpdateBundleSOP      = TablesUpdate<'bundle_sops'>
 
 // ----------------------------------------------------------
 // Composite / joined types
@@ -82,4 +93,14 @@ export interface SOPWithProgress extends SOP {
 export interface ProfileWithProgress extends Profile {
   total_assignments:     number
   completed_assignments: number
+}
+
+/** Bundle with its ordered SOP IDs */
+export interface BundleWithSOPIds extends SOPBundle {
+  bundle_sops: { sop_id: string; position: number }[]
+}
+
+/** Bundle with full SOP details eagerly joined */
+export interface BundleWithSOPs extends SOPBundle {
+  bundle_sops: (BundleSOP & { sop: Pick<SOP, 'id' | 'title' | 'description'> })[]
 }

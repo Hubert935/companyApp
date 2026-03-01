@@ -19,13 +19,14 @@ export default async function MyTasksPage() {
   if (!profile) redirect('/auth/login')
 
   // Fetch all assignments for this employee with SOP + steps
+  // Include step_type and video_url for rich step rendering
   const { data: rawAssignments } = await supabase
     .from('assignments')
     .select(`
       id, completed_at, due_date, created_at,
       sop:sops(
         id, title, description,
-        steps:sop_steps(id, position, title, content, image_url)
+        steps:sop_steps(id, position, title, content, image_url, video_url, step_type)
       )
     `)
     .eq('employee_id', user.id)
@@ -46,8 +47,7 @@ export default async function MyTasksPage() {
     : { data: [] as { step_id: string; assignment_id: string }[] }
 
   const completedStepIds = new Set<string>(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (completions ?? []).map((c: any) => c.step_id)
+    (completions ?? []).map((c) => (c as { step_id: string }).step_id)
   )
 
   return (

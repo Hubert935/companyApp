@@ -36,6 +36,21 @@ create table public.profiles (
 );
 
 -- ============================================================
+-- SOP CATEGORIES
+-- Structured taxonomy for organising SOPs within a company.
+-- Companies define their own categories (e.g. Opening, Safety, HR).
+-- ============================================================
+create table public.sop_categories (
+  id          uuid primary key default uuid_generate_v4(),
+  company_id  uuid not null references public.companies(id) on delete cascade,
+  name        text not null,
+  color       text not null default 'blue'
+                check (color in ('blue','green','orange','purple','red','gray')),
+  created_at  timestamptz not null default now(),
+  unique (company_id, name)
+);
+
+-- ============================================================
 -- SOPs
 -- Standard Operating Procedures, owned by a company
 -- ============================================================
@@ -44,7 +59,8 @@ create table public.sops (
   company_id  uuid not null references public.companies(id) on delete cascade,
   title       text not null,
   description text,
-  category    text,
+  category    text,                    -- legacy free-text, kept for backward compat
+  category_id uuid references public.sop_categories(id) on delete set null,
   created_by  uuid not null references public.profiles(id) on delete cascade,
   is_archived boolean not null default false,
   created_at  timestamptz not null default now(),
@@ -59,6 +75,8 @@ create table public.sop_steps (
   id          uuid primary key default uuid_generate_v4(),
   sop_id      uuid not null references public.sops(id) on delete cascade,
   position    integer not null,
+  step_type   text not null default 'instruction'
+                check (step_type in ('instruction', 'video', 'acknowledgement')),
   title       text not null,
   content     text,
   image_url   text,
@@ -109,6 +127,30 @@ create table public.invites (
   expires_at  timestamptz not null default (now() + interval '7 days'),
   created_at  timestamptz not null default now(),
   unique (company_id, email)
+);
+
+-- ============================================================
+-- SOP BUNDLES
+-- Named groups of SOPs for bulk assignment (e.g. "New Hire Onboarding")
+-- ============================================================
+create table public.sop_bundles (
+  id          uuid primary key default uuid_generate_v4(),
+  company_id  uuid not null references public.companies(id) on delete cascade,
+  name        text not null,
+  description text,
+  created_by  uuid not null references public.profiles(id) on delete cascade,
+  created_at  timestamptz not null default now()
+);
+
+-- ============================================================
+-- BUNDLE SOPS  (join table)
+-- Maps SOPs into bundles with a position for ordering
+-- ============================================================
+create table public.bundle_sops (
+  bundle_id  uuid not null references public.sop_bundles(id) on delete cascade,
+  sop_id     uuid not null references public.sops(id) on delete cascade,
+  position   integer not null default 0,
+  primary key (bundle_id, sop_id)
 );
 
 -- ============================================================
@@ -190,13 +232,16 @@ create trigger on_step_completed
 -- ROW LEVEL SECURITY
 -- ============================================================
 
-alter table public.companies       enable row level security;
-alter table public.profiles        enable row level security;
-alter table public.sops            enable row level security;
-alter table public.sop_steps       enable row level security;
-alter table public.assignments     enable row level security;
+alter table public.companies        enable row level security;
+alter table public.profiles         enable row level security;
+alter table public.sop_categories   enable row level security;
+alter table public.sops             enable row level security;
+alter table public.sop_steps        enable row level security;
+alter table public.assignments      enable row level security;
 alter table public.step_completions enable row level security;
-alter table public.invites         enable row level security;
+alter table public.invites          enable row level security;
+alter table public.sop_bundles      enable row level security;
+alter table public.bundle_sops      enable row level security;
 
 -- Helper: get current user's company_id
 create or replace function public.my_company_id()
@@ -241,6 +286,18 @@ create policy "users can update own profile"
 create policy "system can insert profile"
   on public.profiles for insert
   with check (id = auth.uid());
+
+-- SOP Categories: company members can read; owner/manager can write
+create policy "company members can read categories"
+  on public.sop_categories for select
+  using (company_id = public.my_company_id());
+
+create policy "owner manager can manage categories"
+  on public.sop_categories for all
+  using (
+    company_id = public.my_company_id()
+    and public.my_role() in ('owner', 'manager')
+  );
 
 -- SOPs: company members can read; owner/manager can write
 create policy "company members can read sops"
@@ -334,3 +391,37 @@ create policy "owner manager can manage invites"
 create policy "invited user can read own invite"
   on public.invites for select
   using (email = (select email from auth.users where id = auth.uid()));
+
+-- SOP Bundles: company members can read; owner/manager can write
+create policy "company members can read bundles"
+  on public.sop_bundles for select
+  using (company_id = public.my_company_id());
+
+create policy "owner manager can manage bundles"
+  on public.sop_bundles for all
+  using (
+    company_id = public.my_company_id()
+    and public.my_role() in ('owner', 'manager')
+  );
+
+-- Bundle SOPs: follow bundle access
+create policy "company members can read bundle_sops"
+  on public.bundle_sops for select
+  using (
+    exists (
+      select 1 from public.sop_bundles
+      where id = bundle_sops.bundle_id
+      and company_id = public.my_company_id()
+    )
+  );
+
+create policy "owner manager can manage bundle_sops"
+  on public.bundle_sops for all
+  using (
+    exists (
+      select 1 from public.sop_bundles
+      where id = bundle_sops.bundle_id
+      and company_id = public.my_company_id()
+    )
+    and public.my_role() in ('owner', 'manager')
+  );

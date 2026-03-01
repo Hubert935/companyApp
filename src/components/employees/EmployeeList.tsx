@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronDown, ChevronUp, Plus, CheckCircle2, Clock } from 'lucide-react'
+import { ChevronDown, ChevronUp, Plus, CheckCircle2, Clock, Package } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import Badge from '@/components/ui/Badge'
 import ProgressBar from '@/components/ui/ProgressBar'
@@ -13,6 +13,11 @@ import type { Profile } from '@/types'
 interface SOP {
   id: string
   title: string
+}
+
+interface Bundle {
+  id: string
+  name: string
 }
 
 interface Assignment {
@@ -27,10 +32,11 @@ interface EmployeeListProps {
   employees: Profile[]
   sops: SOP[]
   assignments: Assignment[]
+  bundles: Bundle[]
   currentUserId: string
 }
 
-export default function EmployeeList({ employees, sops, assignments, currentUserId }: EmployeeListProps) {
+export default function EmployeeList({ employees, sops, assignments, bundles, currentUserId }: EmployeeListProps) {
   const router = useRouter()
   const [expanded, setExpanded] = useState<string | null>(null)
   const [assigning, setAssigning] = useState<Record<string, boolean>>({})
@@ -65,6 +71,36 @@ export default function EmployeeList({ employees, sops, assignments, currentUser
     router.refresh()
   }
 
+  async function assignBundle(employeeId: string, bundleId: string) {
+    const key = `bundle-${employeeId}-${bundleId}`
+    setAssigning((prev) => ({ ...prev, [key]: true }))
+
+    const supabase = createClient()
+
+    // Fetch the bundle's SOPs
+    const { data: bundleSOPs } = await supabase
+      .from('bundle_sops')
+      .select('sop_id')
+      .eq('bundle_id', bundleId)
+
+    if (bundleSOPs && bundleSOPs.length > 0) {
+      const alreadyAssigned = getEmployeeAssignments(employeeId).map((a) => a.sop_id)
+      const toAssign = (bundleSOPs as { sop_id: string }[])
+        .filter((bs) => !alreadyAssigned.includes(bs.sop_id))
+        .map((bs) => ({
+          sop_id: bs.sop_id,
+          employee_id: employeeId,
+          assigned_by: currentUserId,
+        }))
+      if (toAssign.length > 0) {
+        await supabase.from('assignments').upsert(toAssign, { onConflict: 'sop_id,employee_id', ignoreDuplicates: true })
+      }
+    }
+
+    setAssigning((prev) => ({ ...prev, [key]: false }))
+    router.refresh()
+  }
+
   return (
     <div className="space-y-3">
       <h2 className="font-semibold text-gray-900 dark:text-white">Team members ({employees.length})</h2>
@@ -78,14 +114,14 @@ export default function EmployeeList({ employees, sops, assignments, currentUser
         const unassigned = getUnassignedSOPs(employee.id)
 
         return (
-          <div key={employee.id} className="bg-white dark:bg-blue-900/30 border border-gray-200 dark:border-gray-700 rounded-2xl overflow-hidden">
+          <div key={employee.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl overflow-hidden">
             {/* Employee header */}
             <button
               onClick={() => setExpanded(isExpanded ? null : employee.id)}
               className="w-full flex items-center gap-4 p-5 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left"
             >
               {/* Avatar */}
-              <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 dark:text-white text-sm font-bold shrink-0">
+              <div className="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-700 dark:text-purple-300 text-sm font-bold shrink-0">
                 {getInitials(employee.full_name, employee.email)}
               </div>
 
@@ -124,7 +160,7 @@ export default function EmployeeList({ employees, sops, assignments, currentUser
                 {/* Assigned SOPs */}
                 {empAssignments.length > 0 && (
                   <div>
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
+                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
                       Assigned SOPs
                     </p>
                     <ul className="space-y-2">
@@ -138,7 +174,7 @@ export default function EmployeeList({ employees, sops, assignments, currentUser
                               ) : (
                                 <Clock className="w-4 h-4 text-orange-400 shrink-0" />
                               )}
-                              <span className="text-sm text-gray-700">{sop?.title ?? '—'}</span>
+                              <span className="text-sm text-gray-700 dark:text-gray-300">{sop?.title ?? '—'}</span>
                             </div>
                             <button
                               onClick={() => unassignSOP(a.id)}
@@ -153,10 +189,10 @@ export default function EmployeeList({ employees, sops, assignments, currentUser
                   </div>
                 )}
 
-                {/* Assign new SOPs */}
+                {/* Assign individual SOPs */}
                 {unassigned.length > 0 && (
                   <div>
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
+                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
                       Assign SOP
                     </p>
                     <div className="flex flex-wrap gap-2">
@@ -167,11 +203,36 @@ export default function EmployeeList({ employees, sops, assignments, currentUser
                             key={sop.id}
                             onClick={() => assignSOP(employee.id, sop.id)}
                             disabled={assigning[key]}
-                            className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:border-blue-400 hover:text-blue-600 disabled:opacity-50 transition-colors"
+                            className="flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-300 hover:border-blue-400 hover:text-blue-600 dark:hover:border-blue-500 dark:hover:text-blue-400 disabled:opacity-50 transition-colors"
                           >
                             <Plus className="w-3 h-3" />
                             {sop.title}
                           </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Assign bundle */}
+                {bundles.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+                      Assign Bundle
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {bundles.map((bundle) => {
+                        const key = `bundle-${employee.id}-${bundle.id}`
+                        return (
+                          <Button
+                            key={bundle.id}
+                            variant="secondary"
+                            onClick={() => assignBundle(employee.id, bundle.id)}
+                            disabled={assigning[key]}
+                          >
+                            <Package className="w-3 h-3" />
+                            {bundle.name}
+                          </Button>
                         )
                       })}
                     </div>

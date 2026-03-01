@@ -88,6 +88,34 @@ export type Database = {
       }
 
       // ----------------------------------------------------------
+      // SOP CATEGORIES
+      // ----------------------------------------------------------
+      sop_categories: {
+        Row: {
+          id: string
+          company_id: string
+          name: string
+          color: Database['public']['Enums']['category_color']
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          name: string
+          color?: Database['public']['Enums']['category_color']
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          company_id?: string
+          name?: string
+          color?: Database['public']['Enums']['category_color']
+          created_at?: string
+        }
+        Relationships: []
+      }
+
+      // ----------------------------------------------------------
       // SOPs
       // ----------------------------------------------------------
       sops: {
@@ -96,7 +124,8 @@ export type Database = {
           company_id: string
           title: string
           description: string | null
-          category: string | null
+          category: string | null          // legacy free-text, kept for backward compat
+          category_id: string | null       // FK → sop_categories
           created_by: string
           is_archived: boolean
           created_at: string
@@ -108,6 +137,7 @@ export type Database = {
           title: string
           description?: string | null
           category?: string | null
+          category_id?: string | null
           created_by: string
           is_archived?: boolean
           created_at?: string
@@ -119,6 +149,7 @@ export type Database = {
           title?: string
           description?: string | null
           category?: string | null
+          category_id?: string | null
           created_by?: string
           is_archived?: boolean
           created_at?: string
@@ -135,6 +166,7 @@ export type Database = {
           id: string
           sop_id: string
           position: number
+          step_type: Database['public']['Enums']['step_type']
           title: string
           content: string | null
           image_url: string | null
@@ -145,6 +177,7 @@ export type Database = {
           id?: string
           sop_id: string
           position: number
+          step_type?: Database['public']['Enums']['step_type']
           title: string
           content?: string | null
           image_url?: string | null
@@ -155,6 +188,7 @@ export type Database = {
           id?: string
           sop_id?: string
           position?: number
+          step_type?: Database['public']['Enums']['step_type']
           title?: string
           content?: string | null
           image_url?: string | null
@@ -262,6 +296,59 @@ export type Database = {
         }
         Relationships: []
       }
+
+      // ----------------------------------------------------------
+      // SOP BUNDLES
+      // ----------------------------------------------------------
+      sop_bundles: {
+        Row: {
+          id: string
+          company_id: string
+          name: string
+          description: string | null
+          created_by: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          name: string
+          description?: string | null
+          created_by: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          company_id?: string
+          name?: string
+          description?: string | null
+          created_by?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+
+      // ----------------------------------------------------------
+      // BUNDLE SOPS  (join table)
+      // ----------------------------------------------------------
+      bundle_sops: {
+        Row: {
+          bundle_id: string
+          sop_id: string
+          position: number
+        }
+        Insert: {
+          bundle_id: string
+          sop_id: string
+          position?: number
+        }
+        Update: {
+          bundle_id?: string
+          sop_id?: string
+          position?: number
+        }
+        Relationships: []
+      }
     }
 
     // ----------------------------------------------------------
@@ -290,6 +377,8 @@ export type Database = {
       user_role: 'owner' | 'manager' | 'employee'
       invite_role: 'manager' | 'employee'
       subscription_status: 'trialing' | 'active' | 'past_due' | 'canceled' | 'unpaid'
+      category_color: 'blue' | 'green' | 'orange' | 'purple' | 'red' | 'gray'
+      step_type: 'instruction' | 'video' | 'acknowledgement'
     }
 
     // ----------------------------------------------------------

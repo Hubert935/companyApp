@@ -1,6 +1,6 @@
 import type {
-  Company, Profile, SOP, SOPStep,
-  Assignment, StepCompletion, Invite,
+  Company, Profile, SOPCategory, SOP, SOPStep,
+  Assignment, StepCompletion, Invite, SOPBundle, BundleSOP,
 } from '@/types'
 
 // ─── Stable mock IDs ────────────────────────────────────────────────────────
@@ -29,6 +29,14 @@ const ASS2_ID = 'a0000000-0000-0000-0000-000000000002'
 const ASS3_ID = 'a0000000-0000-0000-0000-000000000003'
 const ASS4_ID = 'a0000000-0000-0000-0000-000000000004'
 const ASS5_ID = 'a0000000-0000-0000-0000-000000000005'
+
+// Category IDs
+const CAT_OPENING_ID  = 'cat00000-0000-0000-0000-000000000001'
+const CAT_CLEANING_ID = 'cat00000-0000-0000-0000-000000000002'
+const CAT_SAFETY_ID   = 'cat00000-0000-0000-0000-000000000003'
+
+// Bundle IDs
+const BUNDLE1_ID = 'b0000000-0000-0000-0000-000000000001'
 
 // ─── Tables ──────────────────────────────────────────────────────────────────
 
@@ -84,21 +92,27 @@ export const profiles: Profile[] = [
   },
 ]
 
+export const sop_categories: SOPCategory[] = [
+  { id: CAT_OPENING_ID,  company_id: MOCK_COMPANY_ID, name: 'Opening',  color: 'blue',   created_at: '2024-01-01T00:00:00Z' },
+  { id: CAT_CLEANING_ID, company_id: MOCK_COMPANY_ID, name: 'Cleaning', color: 'green',  created_at: '2024-01-01T00:00:00Z' },
+  { id: CAT_SAFETY_ID,   company_id: MOCK_COMPANY_ID, name: 'Safety',   color: 'orange', created_at: '2024-01-01T00:00:00Z' },
+]
+
 const sopSteps: SOPStep[] = [
   // SOP 1 – Opening Procedure
-  { id: S1_1, sop_id: SOP1_ID, position: 1, title: 'Unlock and disarm alarm', content: 'Use the key code 1234* to disarm the alarm panel by the front door. You have 30 seconds once the door opens.', image_url: null, video_url: null, created_at: '2024-01-01T00:00:00Z' },
-  { id: S1_2, sop_id: SOP1_ID, position: 2, title: 'Turn on all lights', content: 'Work from the front of the building to the back. All light switches are on the left side of each doorway.', image_url: null, video_url: null, created_at: '2024-01-01T00:00:00Z' },
-  { id: S1_3, sop_id: SOP1_ID, position: 3, title: 'Check supply inventory', content: 'Open the supply closet and check that cleaning solutions, mops, and gloves are stocked. Reorder if any item is below 20% capacity.', image_url: null, video_url: null, created_at: '2024-01-01T00:00:00Z' },
+  { id: S1_1, sop_id: SOP1_ID, position: 1, step_type: 'instruction', title: 'Unlock and disarm alarm', content: 'Use the key code 1234* to disarm the alarm panel by the front door. You have 30 seconds once the door opens.', image_url: null, video_url: null, created_at: '2024-01-01T00:00:00Z' },
+  { id: S1_2, sop_id: SOP1_ID, position: 2, step_type: 'instruction', title: 'Turn on all lights', content: 'Work from the front of the building to the back. All light switches are on the left side of each doorway.', image_url: null, video_url: null, created_at: '2024-01-01T00:00:00Z' },
+  { id: S1_3, sop_id: SOP1_ID, position: 3, step_type: 'instruction', title: 'Check supply inventory', content: 'Open the supply closet and check that cleaning solutions, mops, and gloves are stocked. Reorder if any item is below 20% capacity.', image_url: null, video_url: null, created_at: '2024-01-01T00:00:00Z' },
 
   // SOP 2 – Deep Clean Bathroom
-  { id: S2_1, sop_id: SOP2_ID, position: 1, title: 'Apply toilet bowl cleaner', content: 'Squirt toilet bowl cleaner under the rim and let sit for at least 5 minutes before scrubbing.', image_url: null, video_url: null, created_at: '2024-01-01T00:00:00Z' },
-  { id: S2_2, sop_id: SOP2_ID, position: 2, title: 'Wipe all surfaces with disinfectant', content: 'Use a fresh microfibre cloth with blue disinfectant spray. Wipe sink, countertop, door handle, and light switch.', image_url: null, video_url: null, created_at: '2024-01-01T00:00:00Z' },
+  { id: S2_1, sop_id: SOP2_ID, position: 1, step_type: 'instruction', title: 'Apply toilet bowl cleaner', content: 'Squirt toilet bowl cleaner under the rim and let sit for at least 5 minutes before scrubbing.', image_url: null, video_url: null, created_at: '2024-01-01T00:00:00Z' },
+  { id: S2_2, sop_id: SOP2_ID, position: 2, step_type: 'instruction', title: 'Wipe all surfaces with disinfectant', content: 'Use a fresh microfibre cloth with blue disinfectant spray. Wipe sink, countertop, door handle, and light switch.', image_url: null, video_url: null, created_at: '2024-01-01T00:00:00Z' },
 
   // SOP 3 – New Employee Safety Orientation
-  { id: S3_1, sop_id: SOP3_ID, position: 1, title: 'Review WHMIS chemical labels', content: 'All cleaning products are labeled with WHMIS symbols. Learn what each symbol means before handling any chemical.', image_url: null, video_url: null, created_at: '2024-01-01T00:00:00Z' },
-  { id: S3_2, sop_id: SOP3_ID, position: 2, title: 'Locate all emergency exits', content: 'Walk the full building and identify every exit. There are 3 exits: front door, back loading dock, and side fire exit.', image_url: null, video_url: null, created_at: '2024-01-01T00:00:00Z' },
-  { id: S3_3, sop_id: SOP3_ID, position: 3, title: 'Sign the safety acknowledgement form', content: 'Complete and sign the paper form in the binder at the front desk. Hand it to your manager.', image_url: null, video_url: null, created_at: '2024-01-01T00:00:00Z' },
-  { id: S3_4, sop_id: SOP3_ID, position: 4, title: 'Wear PPE at all times', content: 'Gloves and non-slip shoes are required when on site. Safety goggles are required when mixing chemicals.', image_url: null, video_url: null, created_at: '2024-01-01T00:00:00Z' },
+  { id: S3_1, sop_id: SOP3_ID, position: 1, step_type: 'video',           title: 'Watch WHMIS safety introduction',  content: 'Watch this short video covering all chemical safety symbols you will encounter on site.',                                                                                 image_url: null, video_url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', created_at: '2024-01-01T00:00:00Z' },
+  { id: S3_2, sop_id: SOP3_ID, position: 2, step_type: 'instruction',     title: 'Locate all emergency exits',       content: 'Walk the full building and identify every exit. There are 3 exits: front door, back loading dock, and side fire exit.',                                           image_url: null, video_url: null, created_at: '2024-01-01T00:00:00Z' },
+  { id: S3_3, sop_id: SOP3_ID, position: 3, step_type: 'acknowledgement', title: 'Acknowledge safety policy',        content: 'I have read and understood the workplace safety policy. I agree to follow all safety procedures and wear appropriate PPE at all times while on site.',             image_url: null, video_url: null, created_at: '2024-01-01T00:00:00Z' },
+  { id: S3_4, sop_id: SOP3_ID, position: 4, step_type: 'instruction',     title: 'Wear PPE at all times',            content: 'Gloves and non-slip shoes are required when on site. Safety goggles are required when mixing chemicals.',                                                        image_url: null, video_url: null, created_at: '2024-01-01T00:00:00Z' },
 ]
 
 export const sops: SOP[] = [
@@ -108,6 +122,7 @@ export const sops: SOP[] = [
     title: 'Opening Procedure',
     description: 'Steps to open and prepare the facility each morning.',
     category: 'Opening',
+    category_id: CAT_OPENING_ID,
     created_by: MOCK_OWNER_ID,
     is_archived: false,
     created_at: '2024-01-01T00:00:00Z',
@@ -119,6 +134,7 @@ export const sops: SOP[] = [
     title: 'Deep Clean Bathroom',
     description: 'Full bathroom deep-clean process to be done weekly.',
     category: 'Cleaning',
+    category_id: CAT_CLEANING_ID,
     created_by: MOCK_OWNER_ID,
     is_archived: false,
     created_at: '2024-01-02T00:00:00Z',
@@ -130,6 +146,7 @@ export const sops: SOP[] = [
     title: 'New Employee Safety Orientation',
     description: 'Required safety training every new hire must complete on their first day.',
     category: 'Safety',
+    category_id: CAT_SAFETY_ID,
     created_by: MOCK_OWNER_ID,
     is_archived: false,
     created_at: '2024-01-03T00:00:00Z',
@@ -176,15 +193,36 @@ export const step_completions: StepCompletion[] = [
 
 export const invites: Invite[] = []
 
+export const sop_bundles: SOPBundle[] = [
+  {
+    id: BUNDLE1_ID,
+    company_id: MOCK_COMPANY_ID,
+    name: 'New Hire Onboarding',
+    description: 'Everything a new employee must complete on their first day.',
+    created_by: MOCK_OWNER_ID,
+    created_at: '2024-01-01T00:00:00Z',
+  },
+]
+
+export const bundle_sops: BundleSOP[] = [
+  { bundle_id: BUNDLE1_ID, sop_id: SOP3_ID, position: 1 },
+  { bundle_id: BUNDLE1_ID, sop_id: SOP1_ID, position: 2 },
+]
+
 // ─── Lookup table used by the mock query builder ──────────────────────────────
-type MockTableName = 'companies' | 'profiles' | 'sops' | 'sop_steps' | 'assignments' | 'step_completions' | 'invites'
+type MockTableName =
+  | 'companies' | 'profiles' | 'sop_categories' | 'sops' | 'sop_steps'
+  | 'assignments' | 'step_completions' | 'invites' | 'sop_bundles' | 'bundle_sops'
 
 export const ALL_MOCK_DATA: Record<MockTableName, unknown[]> = {
   companies,
   profiles,
+  sop_categories,
   sops,
   sop_steps,
   assignments,
   step_completions,
   invites,
+  sop_bundles,
+  bundle_sops,
 }

@@ -20,32 +20,31 @@ export default async function EmployeesPage() {
     redirect('/dashboard')
   }
 
-  const [employeesResult, sopsResult, assignmentsResult] = await Promise.all([
+  const companyId = profile.company_id as string
+
+  const [employeesResult, sopsResult, bundlesResult] = await Promise.all([
     supabase
       .from('profiles')
       .select('*')
-      .eq('company_id', profile.company_id as string)
+      .eq('company_id', companyId)
       .neq('id', user.id)
       .order('created_at', { ascending: true }),
 
     supabase
       .from('sops')
       .select('id, title')
-      .eq('company_id', profile.company_id as string)
+      .eq('company_id', companyId)
       .eq('is_archived', false)
       .order('title'),
 
     supabase
-      .from('assignments')
-      .select('id, sop_id, employee_id, completed_at, due_date')
-      .in(
-        'sop_id',
-        // We'll refetch after getting sops — passing placeholder for now
-        ['00000000-0000-0000-0000-000000000000']
-      ),
+      .from('sop_bundles')
+      .select('id, name')
+      .eq('company_id', companyId)
+      .order('name'),
   ])
 
-  // Refetch assignments properly
+  // Refetch assignments using actual SOP IDs
   const sopIds = (sopsResult.data ?? []).map((s) => s.id)
   const { data: assignments } = sopIds.length
     ? await supabase
@@ -58,13 +57,13 @@ export default async function EmployeesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Team</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Team</h1>
           <p className="text-sm text-gray-500 mt-1">Manage employees and assign training</p>
         </div>
       </div>
 
       {/* Invite form */}
-      <InviteForm companyId={profile.company_id!} invitedBy={user.id} />
+      <InviteForm companyId={companyId} invitedBy={user.id} />
 
       {/* Employee list */}
       {!employeesResult.data || employeesResult.data.length === 0 ? (
@@ -78,6 +77,7 @@ export default async function EmployeesPage() {
           employees={employeesResult.data}
           sops={sopsResult.data ?? []}
           assignments={assignments ?? []}
+          bundles={bundlesResult.data ?? []}
           currentUserId={user.id}
         />
       )}

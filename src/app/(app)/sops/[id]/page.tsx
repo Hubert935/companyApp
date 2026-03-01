@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import SOPEditor from '@/components/sops/SOPEditor'
 import SOPDetail from '@/components/sops/SOPDetail'
-import type { SOPWithSteps } from '@/types'
+import type { SOPWithSteps, SOPCategory } from '@/types'
 
 interface Props {
   params: Promise<{ id: string }>
@@ -40,16 +40,25 @@ export default async function SOPPage({ params }: Props) {
   const canEdit = profile.role === 'owner' || profile.role === 'manager'
 
   if (canEdit) {
+    // Fetch categories for the editor
+    const { data: rawCategories } = await supabase
+      .from('sop_categories')
+      .select('*')
+      .eq('company_id', profile.company_id)
+      .order('name')
+    const categories = (rawCategories ?? []) as unknown as SOPCategory[]
+
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Edit SOP</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Edit SOP</h1>
           <p className="text-sm text-gray-500 mt-1">Update steps and content</p>
         </div>
         <SOPEditor
           companyId={profile.company_id}
           userId={user.id}
           initialSOP={sop}
+          categories={categories}
         />
       </div>
     )
