@@ -30,6 +30,9 @@ export type StepCompletion = Tables<'step_completions'>
 export type Invite         = Tables<'invites'>
 export type SOPBundle      = Tables<'sop_bundles'>
 export type BundleSOP      = Tables<'bundle_sops'>
+export type CompanyRole    = Tables<'company_roles'>
+export type RoleSOP        = Tables<'role_sops'>
+export type EmployeeRole   = Tables<'employee_roles'>
 
 // ----------------------------------------------------------
 // Insert types  (shape expected by INSERT)
@@ -44,6 +47,9 @@ export type NewStepCompletion = TablesInsert<'step_completions'>
 export type NewInvite         = TablesInsert<'invites'>
 export type NewSOPBundle      = TablesInsert<'sop_bundles'>
 export type NewBundleSOP      = TablesInsert<'bundle_sops'>
+export type NewCompanyRole    = TablesInsert<'company_roles'>
+export type NewRoleSOP        = TablesInsert<'role_sops'>
+export type NewEmployeeRole   = TablesInsert<'employee_roles'>
 
 // ----------------------------------------------------------
 // Update types  (all fields optional, used by UPDATE)
@@ -58,6 +64,9 @@ export type UpdateStepCompletion = TablesUpdate<'step_completions'>
 export type UpdateInvite         = TablesUpdate<'invites'>
 export type UpdateSOPBundle      = TablesUpdate<'sop_bundles'>
 export type UpdateBundleSOP      = TablesUpdate<'bundle_sops'>
+export type UpdateCompanyRole    = TablesUpdate<'company_roles'>
+export type UpdateRoleSOP        = TablesUpdate<'role_sops'>
+export type UpdateEmployeeRole   = TablesUpdate<'employee_roles'>
 
 // ----------------------------------------------------------
 // Composite / joined types
@@ -103,4 +112,66 @@ export interface BundleWithSOPIds extends SOPBundle {
 /** Bundle with full SOP details eagerly joined */
 export interface BundleWithSOPs extends SOPBundle {
   bundle_sops: (BundleSOP & { sop: Pick<SOP, 'id' | 'title' | 'description'> })[]
+}
+
+// ----------------------------------------------------------
+// Capability Engine — Roles + Certification
+// ----------------------------------------------------------
+
+/** Certification status derived from event columns on employee_roles.
+ *  Never stored — always computed on read. */
+export type CertStatus =
+  | 'in_training'          // role assigned, training not yet complete
+  | 'pending_review'       // training complete, awaiting manager approval
+  | 'certified'            // manager-approved, not expired, snapshot matches current role
+  | 'needs_recertification'// role SOPs changed since certification was granted
+  | 'expired'              // certified_at set but expires_at is in the past
+  | 'revoked'              // explicitly revoked by a manager
+
+/** Pure function — derives certification status from event columns.
+ *  @param er           The employee_roles row
+ *  @param currentSopIds The current sop_ids from role_sops for this role
+ */
+export function getCertStatus(
+  er: Pick<
+    EmployeeRole,
+    | 'revoked_at'
+    | 'certified_at'
+    | 'expires_at'
+    | 'role_snapshot'
+    | 'training_completed_at'
+  >,
+  currentSopIds: string[]
+): CertStatus {
+  if (er.revoked_at) return 'revoked'
+
+  if (er.certified_at) {
+    if (er.expires_at && new Date(er.expires_at) < new Date()) return 'expired'
+
+    const snapshot = (er.role_snapshot as { sop_id: string }[] | null) ?? []
+    const snapshotKey = snapshot.map((s) => s.sop_id).sort().join(',')
+    const currentKey  = [...currentSopIds].sort().join(',')
+    if (snapshotKey !== currentKey) return 'needs_recertification'
+
+    return 'certified'
+  }
+
+  if (er.training_completed_at) return 'pending_review'
+  return 'in_training'
+}
+
+/** Role with its ordered SOP ids (for list/picker views) */
+export interface RoleWithSOPIds extends CompanyRole {
+  role_sops: { sop_id: string; position: number }[]
+}
+
+/** Role with full SOP details (for editor) */
+export interface RoleWithSOPs extends CompanyRole {
+  role_sops: (RoleSOP & { sop: Pick<SOP, 'id' | 'title' | 'description'> })[]
+}
+
+/** EmployeeRole enriched with the role object and certification status */
+export interface EmployeeRoleWithStatus extends EmployeeRole {
+  company_role: CompanyRole
+  status: CertStatus
 }

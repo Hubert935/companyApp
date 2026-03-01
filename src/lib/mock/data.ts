@@ -1,6 +1,7 @@
 import type {
   Company, Profile, SOPCategory, SOP, SOPStep,
   Assignment, StepCompletion, Invite, SOPBundle, BundleSOP,
+  CompanyRole, RoleSOP, EmployeeRole,
 } from '@/types'
 
 // ─── Stable mock IDs ────────────────────────────────────────────────────────
@@ -37,6 +38,10 @@ const CAT_SAFETY_ID   = 'cat00000-0000-0000-0000-000000000003'
 
 // Bundle IDs
 const BUNDLE1_ID = 'b0000000-0000-0000-0000-000000000001'
+
+// Role IDs
+const ROLE_CLEANER_ID   = 'r0000000-0000-0000-0000-000000000001'
+const ROLE_SUPERVISOR_ID = 'r0000000-0000-0000-0000-000000000002'
 
 // ─── Tables ──────────────────────────────────────────────────────────────────
 
@@ -209,10 +214,75 @@ export const bundle_sops: BundleSOP[] = [
   { bundle_id: BUNDLE1_ID, sop_id: SOP1_ID, position: 2 },
 ]
 
+// ─── Capability Engine — Roles ────────────────────────────────────────────────
+
+export const company_roles: CompanyRole[] = [
+  {
+    id: ROLE_CLEANER_ID,
+    company_id: MOCK_COMPANY_ID,
+    name: 'Cleaner',
+    description: 'General cleaning staff. Must be trained on opening procedures and deep clean protocols.',
+    color: 'blue',
+    created_at: '2024-01-01T00:00:00Z',
+  },
+  {
+    id: ROLE_SUPERVISOR_ID,
+    company_id: MOCK_COMPANY_ID,
+    name: 'Shift Supervisor',
+    description: 'Responsible for the full shift. Must complete all Cleaner training plus safety orientation.',
+    color: 'purple',
+    created_at: '2024-01-01T00:00:00Z',
+  },
+]
+
+export const role_sops: RoleSOP[] = [
+  // Cleaner requires: Opening Procedure + Deep Clean Bathroom
+  { role_id: ROLE_CLEANER_ID, sop_id: SOP1_ID, position: 1 },
+  { role_id: ROLE_CLEANER_ID, sop_id: SOP2_ID, position: 2 },
+  // Shift Supervisor requires: Safety Orientation + Opening Procedure + Deep Clean
+  { role_id: ROLE_SUPERVISOR_ID, sop_id: SOP3_ID, position: 1 },
+  { role_id: ROLE_SUPERVISOR_ID, sop_id: SOP1_ID, position: 2 },
+  { role_id: ROLE_SUPERVISOR_ID, sop_id: SOP2_ID, position: 3 },
+]
+
+export const employee_roles: EmployeeRole[] = [
+  // Priya — Cleaner role, training in progress (completed SOP1, SOP2 pending)
+  {
+    employee_id: MOCK_EMP1_ID,
+    role_id: ROLE_CLEANER_ID,
+    assigned_at: '2024-01-15T00:00:00Z',
+    assigned_by: MOCK_OWNER_ID,
+    training_completed_at: null,
+    certified_at: null,
+    certified_by: null,
+    expires_at: null,
+    role_snapshot: null,
+    revoked_at: null,
+    revoked_by: null,
+    revocation_reason: null,
+  },
+  // Tom — Shift Supervisor, training complete (all 3 SOPs done), pending review
+  {
+    employee_id: MOCK_EMP2_ID,
+    role_id: ROLE_SUPERVISOR_ID,
+    assigned_at: '2024-01-20T00:00:00Z',
+    assigned_by: MOCK_OWNER_ID,
+    training_completed_at: '2024-02-05T00:00:00Z',
+    certified_at: null,
+    certified_by: null,
+    expires_at: null,
+    role_snapshot: null,
+    revoked_at: null,
+    revoked_by: null,
+    revocation_reason: null,
+  },
+]
+
 // ─── Lookup table used by the mock query builder ──────────────────────────────
 type MockTableName =
   | 'companies' | 'profiles' | 'sop_categories' | 'sops' | 'sop_steps'
   | 'assignments' | 'step_completions' | 'invites' | 'sop_bundles' | 'bundle_sops'
+  | 'company_roles' | 'role_sops' | 'employee_roles'
 
 export const ALL_MOCK_DATA: Record<MockTableName, unknown[]> = {
   companies,
@@ -225,4 +295,7 @@ export const ALL_MOCK_DATA: Record<MockTableName, unknown[]> = {
   invites,
   sop_bundles,
   bundle_sops,
+  company_roles,
+  role_sops,
+  employee_roles,
 }

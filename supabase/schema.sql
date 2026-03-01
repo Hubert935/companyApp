@@ -425,3 +425,114 @@ create policy "owner manager can manage bundle_sops"
     )
     and public.my_role() in ('owner', 'manager')
   );
+
+-- ============================================================
+-- CAPABILITY ENGINE
+-- ============================================================
+
+-- Company Roles: business/operational roles (not auth roles)
+-- e.g. "Barista", "Shift Manager", "Line Cook"
+create table if not exists public.company_roles (
+  id          uuid primary key default uuid_generate_v4(),
+  company_id  uuid not null references public.companies(id) on delete cascade,
+  name        text not null,
+  description text,
+  color       text not null default 'blue'
+                check (color in ('blue','green','orange','purple','red','gray')),
+  created_at  timestamptz not null default now(),
+  unique (company_id, name)
+);
+
+-- Role SOPs: ordered SOPs required for a role
+create table if not exists public.role_sops (
+  role_id  uuid not null references public.company_roles(id) on delete cascade,
+  sop_id   uuid not null references public.sops(id) on delete cascade,
+  position integer not null default 0,
+  primary key (role_id, sop_id)
+);
+
+-- Employee Roles: capability state machine
+-- Training completion and certification are separate events.
+-- Status is always derived from these event columns — never stored.
+create table if not exists public.employee_roles (
+  employee_id           uuid not null references public.profiles(id) on delete cascade,
+  role_id               uuid not null references public.company_roles(id) on delete cascade,
+  assigned_at           timestamptz not null default now(),
+  assigned_by           uuid references public.profiles(id) on delete set null,
+
+  -- Training layer (system-detected)
+  training_completed_at timestamptz,
+
+  -- Certification layer (human-authorised)
+  certified_at          timestamptz,
+  certified_by          uuid references public.profiles(id) on delete set null,
+  expires_at            timestamptz,
+  role_snapshot         jsonb,            -- [{sop_id, position}] snapshot at certification
+
+  -- Revocation layer
+  revoked_at            timestamptz,
+  revoked_by            uuid references public.profiles(id) on delete set null,
+  revocation_reason     text,
+
+  primary key (employee_id, role_id)
+);
+
+alter table public.company_roles  enable row level security;
+alter table public.role_sops      enable row level security;
+alter table public.employee_roles enable row level security;
+
+-- Company roles: all company members read; owner/manager write
+create policy "company members can read company_roles"
+  on public.company_roles for select
+  using (company_id = public.my_company_id());
+
+create policy "owner manager can manage company_roles"
+  on public.company_roles for all
+  using (
+    company_id = public.my_company_id()
+    and public.my_role() in ('owner', 'manager')
+  );
+
+-- Role SOPs: follow company_roles access
+create policy "company members can read role_sops"
+  on public.role_sops for select
+  using (
+    exists (
+      select 1 from public.company_roles r
+      where r.id = role_sops.role_id
+      and r.company_id = public.my_company_id()
+    )
+  );
+
+create policy "owner manager can manage role_sops"
+  on public.role_sops for all
+  using (
+    exists (
+      select 1 from public.company_roles r
+      where r.id = role_sops.role_id
+      and r.company_id = public.my_company_id()
+    )
+    and public.my_role() in ('owner', 'manager')
+  );
+
+-- Employee roles: all company members read; owner/manager write
+create policy "company members can read employee_roles"
+  on public.employee_roles for select
+  using (
+    exists (
+      select 1 from public.company_roles r
+      where r.id = employee_roles.role_id
+      and r.company_id = public.my_company_id()
+    )
+  );
+
+create policy "owner manager can manage employee_roles"
+  on public.employee_roles for all
+  using (
+    exists (
+      select 1 from public.company_roles r
+      where r.id = employee_roles.role_id
+      and r.company_id = public.my_company_id()
+    )
+    and public.my_role() in ('owner', 'manager')
+  );

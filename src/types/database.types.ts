@@ -298,6 +298,108 @@ export type Database = {
       }
 
       // ----------------------------------------------------------
+      // COMPANY ROLES  (business/operational roles, not auth roles)
+      // ----------------------------------------------------------
+      company_roles: {
+        Row: {
+          id: string
+          company_id: string
+          name: string
+          description: string | null
+          color: Database['public']['Enums']['category_color']
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          name: string
+          description?: string | null
+          color?: Database['public']['Enums']['category_color']
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          company_id?: string
+          name?: string
+          description?: string | null
+          color?: Database['public']['Enums']['category_color']
+          created_at?: string
+        }
+        Relationships: []
+      }
+
+      // ----------------------------------------------------------
+      // ROLE SOPS  (ordered SOPs required for a role)
+      // ----------------------------------------------------------
+      role_sops: {
+        Row: {
+          role_id: string
+          sop_id: string
+          position: number
+        }
+        Insert: {
+          role_id: string
+          sop_id: string
+          position?: number
+        }
+        Update: {
+          role_id?: string
+          sop_id?: string
+          position?: number
+        }
+        Relationships: []
+      }
+
+      // ----------------------------------------------------------
+      // EMPLOYEE ROLES  (capability state machine)
+      // ----------------------------------------------------------
+      employee_roles: {
+        Row: {
+          employee_id: string
+          role_id: string
+          assigned_at: string
+          assigned_by: string | null
+          training_completed_at: string | null
+          certified_at: string | null
+          certified_by: string | null
+          expires_at: string | null
+          role_snapshot: Json | null          // [{sop_id, position}] at certification time
+          revoked_at: string | null
+          revoked_by: string | null
+          revocation_reason: string | null
+        }
+        Insert: {
+          employee_id: string
+          role_id: string
+          assigned_at?: string
+          assigned_by?: string | null
+          training_completed_at?: string | null
+          certified_at?: string | null
+          certified_by?: string | null
+          expires_at?: string | null
+          role_snapshot?: Json | null
+          revoked_at?: string | null
+          revoked_by?: string | null
+          revocation_reason?: string | null
+        }
+        Update: {
+          employee_id?: string
+          role_id?: string
+          assigned_at?: string
+          assigned_by?: string | null
+          training_completed_at?: string | null
+          certified_at?: string | null
+          certified_by?: string | null
+          expires_at?: string | null
+          role_snapshot?: Json | null
+          revoked_at?: string | null
+          revoked_by?: string | null
+          revocation_reason?: string | null
+        }
+        Relationships: []
+      }
+
+      // ----------------------------------------------------------
       // SOP BUNDLES
       // ----------------------------------------------------------
       sop_bundles: {
