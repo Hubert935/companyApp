@@ -4,6 +4,7 @@ import { Users } from 'lucide-react'
 import EmptyState from '@/components/ui/EmptyState'
 import EmployeeList from '@/components/employees/EmployeeList'
 import InviteForm from '@/components/employees/InviteForm'
+import type { CertStatusRow } from '@/types/intelligence'
 
 export default async function EmployeesPage() {
   const supabase = await createClient()
@@ -22,7 +23,7 @@ export default async function EmployeesPage() {
 
   const companyId = profile.company_id as string
 
-  const [employeesResult, sopsResult, rolesResult] = await Promise.all([
+  const [employeesResult, sopsResult, rolesResult, certStatusResult] = await Promise.all([
     supabase
       .from('profiles')
       .select('*')
@@ -39,12 +40,17 @@ export default async function EmployeesPage() {
 
     supabase
       .from('company_roles')
-      .select('id, name, color, role_sops(sop_id, position)')
+      .select('id, name, color, minimum_certified_count, role_sops(sop_id, position)')
       .eq('company_id', companyId)
       .order('name'),
+
+    // Intelligence view: full cert status for all employees in this company
+    supabase
+      .from('v_cert_status')
+      .select('*'),
   ])
 
-  const sopIds = (sopsResult.data ?? []).map((s) => s.id)
+  const sopIds  = (sopsResult.data ?? []).map((s) => s.id)
   const roleIds = (rolesResult.data ?? []).map((r) => r.id)
 
   const [assignmentsResult, employeeRolesResult] = await Promise.all([
@@ -67,6 +73,7 @@ export default async function EmployeesPage() {
     id: string
     name: string
     color: string
+    minimum_certified_count: number
     role_sops: { sop_id: string; position: number }[]
   }
 
@@ -86,7 +93,9 @@ export default async function EmployeesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Team</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage employees, assign roles, and certify capability</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            Manage employees, assign roles, and certify capability
+          </p>
         </div>
       </div>
 
@@ -105,6 +114,7 @@ export default async function EmployeesPage() {
           assignments={(assignmentsResult.data ?? []) as { id: string; sop_id: string; employee_id: string; completed_at: string | null; due_date: string | null }[]}
           roles={(rolesResult.data ?? []) as unknown as RoleWithSOPs[]}
           employeeRoles={(employeeRolesResult.data ?? []) as unknown as EmployeeRoleRow[]}
+          certStatuses={(certStatusResult.data ?? []) as unknown as CertStatusRow[]}
           currentUserId={user.id}
         />
       )}

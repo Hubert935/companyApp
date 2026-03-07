@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { fireWebhookEvent } from '@/lib/integrations/webhook'
 
 interface RevokeBody {
   employeeId: string
@@ -50,6 +51,15 @@ export async function POST(request: Request) {
       .eq('role_id', roleId)
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    // Fire webhook event asynchronously — don't block the response
+    fireWebhookEvent(profile.company_id, 'cert.revoked', {
+      employee_id: employeeId,
+      role_id: roleId,
+      revoked_at: new Date().toISOString(),
+      revoked_by: user.id,
+      reason: reason ?? null,
+    }).catch(() => { /* best-effort */ })
 
     return NextResponse.json({ success: true })
   } catch (err: unknown) {

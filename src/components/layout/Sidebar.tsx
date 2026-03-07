@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, BookOpen, Users, LogOut,
-  ClipboardList, CreditCard, Sun, Moon, ShieldCheck,
+  ClipboardList, CreditCard, Sun, Moon, ShieldCheck, Plug,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
@@ -17,12 +17,13 @@ interface SidebarProps {
 }
 
 const ownerManagerLinks = [
-  { href: '/dashboard', label: 'Dashboard',   icon: LayoutDashboard },
-  { href: '/sops',      label: 'SOPs',         icon: BookOpen },
-  { href: '/roles',     label: 'Roles',          icon: ShieldCheck },
-  { href: '/employees', label: 'Team',          icon: Users },
-  { href: '/onboarding', label: 'My Training', icon: ClipboardList },
-  { href: '/billing',   label: 'Billing',       icon: CreditCard },
+  { href: '/dashboard',    label: 'Dashboard',    icon: LayoutDashboard },
+  { href: '/sops',         label: 'SOPs',          icon: BookOpen },
+  { href: '/roles',        label: 'Roles',         icon: ShieldCheck },
+  { href: '/employees',    label: 'Team',          icon: Users },
+  { href: '/onboarding',   label: 'My Training',   icon: ClipboardList },
+  { href: '/integrations', label: 'Integrations',  icon: Plug },
+  { href: '/billing',      label: 'Billing',       icon: CreditCard },
 ]
 
 const employeeLinks = [

@@ -64,6 +64,7 @@ export type Database = {
           company_id: string | null
           role: Database['public']['Enums']['user_role']
           invited_by: string | null
+          phone_number: string | null
           created_at: string
         }
         Insert: {
@@ -73,6 +74,7 @@ export type Database = {
           company_id?: string | null
           role?: Database['public']['Enums']['user_role']
           invited_by?: string | null
+          phone_number?: string | null
           created_at?: string
         }
         Update: {
@@ -82,6 +84,7 @@ export type Database = {
           company_id?: string | null
           role?: Database['public']['Enums']['user_role']
           invited_by?: string | null
+          phone_number?: string | null
           created_at?: string
         }
         Relationships: []
@@ -307,6 +310,7 @@ export type Database = {
           name: string
           description: string | null
           color: Database['public']['Enums']['category_color']
+          minimum_certified_count: number
           created_at: string
         }
         Insert: {
@@ -315,6 +319,7 @@ export type Database = {
           name: string
           description?: string | null
           color?: Database['public']['Enums']['category_color']
+          minimum_certified_count?: number
           created_at?: string
         }
         Update: {
@@ -323,6 +328,7 @@ export type Database = {
           name?: string
           description?: string | null
           color?: Database['public']['Enums']['category_color']
+          minimum_certified_count?: number
           created_at?: string
         }
         Relationships: []
@@ -451,12 +457,284 @@ export type Database = {
         }
         Relationships: []
       }
+
+      // ----------------------------------------------------------
+      // NOTIFICATION_SETTINGS  (Twilio SMS per company)
+      // ----------------------------------------------------------
+      notification_settings: {
+        Row: {
+          id: string
+          company_id: string
+          twilio_account_sid: string | null
+          twilio_auth_token: string | null
+          twilio_from_number: string | null
+          notify_expiry_7d: boolean
+          notify_expired: boolean
+          notify_pending_48h: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          twilio_account_sid?: string | null
+          twilio_auth_token?: string | null
+          twilio_from_number?: string | null
+          notify_expiry_7d?: boolean
+          notify_expired?: boolean
+          notify_pending_48h?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          company_id?: string
+          twilio_account_sid?: string | null
+          twilio_auth_token?: string | null
+          twilio_from_number?: string | null
+          notify_expiry_7d?: boolean
+          notify_expired?: boolean
+          notify_pending_48h?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+
+      // ----------------------------------------------------------
+      // WEBHOOK_ENDPOINTS  (Zapier / generic outbound webhooks)
+      // ----------------------------------------------------------
+      webhook_endpoints: {
+        Row: {
+          id: string
+          company_id: string
+          url: string
+          secret: string
+          label: string | null
+          events: string[]
+          is_active: boolean
+          last_fired_at: string | null
+          last_status_code: number | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          url: string
+          secret: string
+          label?: string | null
+          events?: string[]
+          is_active?: boolean
+          last_fired_at?: string | null
+          last_status_code?: number | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          company_id?: string
+          url?: string
+          secret?: string
+          label?: string | null
+          events?: string[]
+          is_active?: boolean
+          last_fired_at?: string | null
+          last_status_code?: number | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+
+      // ----------------------------------------------------------
+      // INTEGRATIONS  (Gusto / Homebase / Slack OAuth tokens)
+      // ----------------------------------------------------------
+      integrations: {
+        Row: {
+          id: string
+          company_id: string
+          provider: 'gusto' | 'homebase' | 'slack'
+          access_token: string | null
+          refresh_token: string | null
+          token_expires_at: string | null
+          config: Record<string, unknown>
+          connected_at: string | null
+          last_sync_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          provider: 'gusto' | 'homebase' | 'slack'
+          access_token?: string | null
+          refresh_token?: string | null
+          token_expires_at?: string | null
+          config?: Record<string, unknown>
+          connected_at?: string | null
+          last_sync_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          company_id?: string
+          provider?: 'gusto' | 'homebase' | 'slack'
+          access_token?: string | null
+          refresh_token?: string | null
+          token_expires_at?: string | null
+          config?: Record<string, unknown>
+          connected_at?: string | null
+          last_sync_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+
+      // ----------------------------------------------------------
+      // NOTIFICATION_LOG  (SMS/Slack deduplication + audit)
+      // ----------------------------------------------------------
+      notification_log: {
+        Row: {
+          id: string
+          company_id: string
+          channel: 'sms' | 'slack'
+          recipient: string
+          message: string
+          event_type: string
+          employee_id: string | null
+          role_id: string | null
+          status: 'sent' | 'failed'
+          error: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          company_id: string
+          channel: 'sms' | 'slack'
+          recipient: string
+          message: string
+          event_type: string
+          employee_id?: string | null
+          role_id?: string | null
+          status?: 'sent' | 'failed'
+          error?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          company_id?: string
+          channel?: 'sms' | 'slack'
+          recipient?: string
+          message?: string
+          event_type?: string
+          employee_id?: string | null
+          role_id?: string | null
+          status?: 'sent' | 'failed'
+          error?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
     }
 
     // ----------------------------------------------------------
-    // VIEWS  (none — required field for Supabase v2 generic)
+    // VIEWS  (Intelligence Engine)
     // ----------------------------------------------------------
-    Views: Record<string, never>
+    Views: {
+      v_cert_status: {
+        Row: {
+          employee_id: string
+          role_id: string
+          company_id: string
+          role_name: string
+          role_color: string
+          employee_name: string | null
+          employee_email: string
+          assigned_at: string
+          training_completed_at: string | null
+          certified_at: string | null
+          certified_by: string | null
+          certified_by_name: string | null
+          expires_at: string | null
+          role_snapshot: Json | null
+          revoked_at: string | null
+          revoked_by: string | null
+          revocation_reason: string | null
+          current_sop_ids: string[] | null
+          snapshot_sop_ids: string[] | null
+          is_drifted: boolean
+          added_sop_ids: string[]
+          removed_sop_ids: string[]
+          cert_status: string   // 'in_training'|'pending_review'|'certified'|'needs_recertification'|'expired'|'revoked'
+          days_until_expiry: number | null
+          expiring_critical: boolean
+          expiring_warning: boolean
+          expiring_planning: boolean
+        }
+        Relationships: []
+      }
+      v_role_coverage: {
+        Row: {
+          role_id: string
+          company_id: string
+          role_name: string
+          color: string
+          description: string | null
+          minimum_certified_count: number
+          total_assigned: number
+          certified_count: number
+          pending_count: number
+          in_training_count: number
+          drifted_count: number
+          lapsed_count: number
+          expiring_7d: number
+          expiring_30d: number
+          expiring_60d: number
+          is_spof: boolean
+          below_threshold: boolean
+          coverage_pct: number
+        }
+        Relationships: []
+      }
+      v_expiry_risk: {
+        Row: {
+          employee_id: string
+          role_id: string
+          company_id: string
+          employee_name: string | null
+          employee_email: string
+          role_name: string
+          role_color: string
+          certified_at: string | null
+          certified_by_name: string | null
+          expires_at: string
+          days_until_expiry: number
+          expiry_window: string   // '7d' | '30d' | '60d'
+          is_spof: boolean
+          priority_score: number
+        }
+        Relationships: []
+      }
+      v_company_health: {
+        Row: {
+          coverage_score: number
+          currency_score: number
+          drift_score: number
+          expiry_score: number
+          covered_roles: number
+          total_roles: number
+          current_certs: number
+          total_active_certs: number
+          drifted_count: number
+          expiring_critical_count: number
+          total_certified: number
+          health_score: number
+          health_grade: string   // 'healthy' | 'needs_attention' | 'at_risk'
+          computed_at: string
+        }
+        Relationships: []
+      }
+    }
 
     // ----------------------------------------------------------
     // FUNCTIONS  (RPC helpers)

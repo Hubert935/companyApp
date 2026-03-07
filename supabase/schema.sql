@@ -536,3 +536,310 @@ create policy "owner manager can manage employee_roles"
     )
     and public.my_role() in ('owner', 'manager')
   );
+
+-- ============================================================
+-- INTELLIGENCE ENGINE
+-- ============================================================
+
+-- Add coverage threshold to company_roles
+-- (safe: ADD COLUMN with DEFAULT backfills without table lock)
+alter table public.company_roles
+  add column if not exists minimum_certified_count integer not null default 2
+    check (minimum_certified_count >= 1);
+
+-- v_cert_status: per (employee_id, role_id) computed certification status + drift detection
+-- Mirrors getCertStatus() TypeScript logic exactly. Scoped to my_company_id() via company_roles JOIN.
+create or replace view public.v_cert_status as
+with current_sops as (
+  select rs.role_id,
+         array_agg(rs.sop_id::text order by rs.sop_id::text) as current_sop_ids
+  from   public.role_sops rs
+  group  by rs.role_id
+),
+snapshot_sops as (
+  select er.employee_id, er.role_id,
+         array_agg((elem->>'sop_id') order by (elem->>'sop_id')) as snapshot_sop_ids
+  from   public.employee_roles er,
+         jsonb_array_elements(coalesce(er.role_snapshot, '[]'::jsonb)) as elem
+  group  by er.employee_id, er.role_id
+)
+select
+  er.employee_id,
+  er.role_id,
+  cr.company_id,
+  cr.name                    as role_name,
+  cr.color                   as role_color,
+  p.full_name                as employee_name,
+  p.email                    as employee_email,
+  er.assigned_at,
+  er.training_completed_at,
+  er.certified_at,
+  er.certified_by,
+  certifier.full_name        as certified_by_name,
+  er.expires_at,
+  er.role_snapshot,
+  er.revoked_at,
+  er.revoked_by,
+  er.revocation_reason,
+  cs.current_sop_ids,
+  ss.snapshot_sop_ids,
+  -- Drift: certified against outdated role definition
+  (er.certified_at is not null and er.revoked_at is null
+    and (er.expires_at is null or er.expires_at > now())
+    and ss.snapshot_sop_ids is distinct from cs.current_sop_ids
+  )                          as is_drifted,
+  -- SOPs added to role since certification
+  case when er.certified_at is not null and er.revoked_at is null then
+    array(select unnest(cs.current_sop_ids)
+          except select unnest(coalesce(ss.snapshot_sop_ids, array[]::text[])))
+  else array[]::text[] end   as added_sop_ids,
+  -- SOPs removed from role since certification
+  case when er.certified_at is not null and er.revoked_at is null then
+    array(select unnest(coalesce(ss.snapshot_sop_ids, array[]::text[]))
+          except select unnest(cs.current_sop_ids))
+  else array[]::text[] end   as removed_sop_ids,
+  -- Computed status (mirrors getCertStatus() TypeScript exactly)
+  case
+    when er.revoked_at is not null                                     then 'revoked'
+    when er.certified_at is not null and er.expires_at is not null
+         and er.expires_at < now()                                     then 'expired'
+    when er.certified_at is not null and er.revoked_at is null
+         and ss.snapshot_sop_ids is distinct from cs.current_sop_ids  then 'needs_recertification'
+    when er.certified_at is not null                                   then 'certified'
+    when er.training_completed_at is not null                          then 'pending_review'
+    else                                                                    'in_training'
+  end                        as cert_status,
+  -- Days until expiry (null if no expiry set)
+  case when er.expires_at is not null
+    then extract(day from er.expires_at - now())::integer
+  else null end              as days_until_expiry,
+  -- Expiry window flags
+  (er.expires_at is not null and er.expires_at > now()
+   and er.expires_at < now() + interval '7 days'  and er.revoked_at is null) as expiring_critical,
+  (er.expires_at is not null and er.expires_at > now()
+   and er.expires_at < now() + interval '30 days' and er.revoked_at is null) as expiring_warning,
+  (er.expires_at is not null and er.expires_at > now()
+   and er.expires_at < now() + interval '60 days' and er.revoked_at is null) as expiring_planning
+from   public.employee_roles er
+join   public.company_roles  cr        on cr.id       = er.role_id
+join   public.profiles       p         on p.id        = er.employee_id
+left join public.profiles    certifier on certifier.id = er.certified_by
+left join current_sops       cs        on cs.role_id   = er.role_id
+left join snapshot_sops      ss        on ss.employee_id = er.employee_id
+                                       and ss.role_id    = er.role_id
+where  cr.company_id = public.my_company_id();
+
+-- v_role_coverage: per-role aggregated coverage metrics
+create or replace view public.v_role_coverage as
+select
+  cr.id                          as role_id,
+  cr.company_id,
+  cr.name                        as role_name,
+  cr.color,
+  cr.description,
+  coalesce(cr.minimum_certified_count, 2) as minimum_certified_count,
+  count(vcs.employee_id) filter (where vcs.cert_status != 'revoked')              as total_assigned,
+  count(vcs.employee_id) filter (where vcs.cert_status = 'certified')             as certified_count,
+  count(vcs.employee_id) filter (where vcs.cert_status = 'pending_review')        as pending_count,
+  count(vcs.employee_id) filter (where vcs.cert_status = 'in_training')           as in_training_count,
+  count(vcs.employee_id) filter (where vcs.cert_status = 'needs_recertification') as drifted_count,
+  count(vcs.employee_id) filter (where vcs.cert_status in ('expired','revoked'))  as lapsed_count,
+  count(vcs.employee_id) filter (where vcs.expiring_critical and vcs.cert_status = 'certified') as expiring_7d,
+  count(vcs.employee_id) filter (where vcs.expiring_warning  and vcs.cert_status = 'certified') as expiring_30d,
+  count(vcs.employee_id) filter (where vcs.expiring_planning and vcs.cert_status = 'certified') as expiring_60d,
+  (count(vcs.employee_id) filter (where vcs.cert_status = 'certified') = 1)       as is_spof,
+  (count(vcs.employee_id) filter (where vcs.cert_status = 'certified')
+    < coalesce(cr.minimum_certified_count, 2))                                    as below_threshold,
+  least(100, round(
+    count(vcs.employee_id) filter (where vcs.cert_status = 'certified')::numeric
+    / nullif(coalesce(cr.minimum_certified_count, 2), 0) * 100
+  ))                             as coverage_pct
+from   public.company_roles cr
+left join public.v_cert_status vcs on vcs.role_id = cr.id
+where  cr.company_id = public.my_company_id()
+group  by cr.id, cr.company_id, cr.name, cr.color, cr.description, cr.minimum_certified_count;
+
+-- v_expiry_risk: certifications expiring in 60 days, with priority scoring
+create or replace view public.v_expiry_risk as
+with role_cert_counts as (
+  select role_id, count(*) as certified_count
+  from   public.v_cert_status
+  where  cert_status = 'certified'
+  group  by role_id
+)
+select
+  vcs.employee_id,
+  vcs.role_id,
+  vcs.company_id,
+  vcs.employee_name,
+  vcs.employee_email,
+  vcs.role_name,
+  vcs.role_color,
+  vcs.certified_at,
+  vcs.certified_by_name,
+  vcs.expires_at,
+  vcs.days_until_expiry,
+  case
+    when vcs.days_until_expiry <= 7  then '7d'
+    when vcs.days_until_expiry <= 30 then '30d'
+    else '60d'
+  end                              as expiry_window,
+  (coalesce(rcc.certified_count, 0) = 1) as is_spof,
+  -- Priority: window urgency + SPOF multiplier
+  (case when vcs.days_until_expiry <= 7  then 3
+        when vcs.days_until_expiry <= 30 then 2
+        else 1 end
+   + case when coalesce(rcc.certified_count, 0) = 1 then 3 else 0 end
+  )                                as priority_score
+from   public.v_cert_status  vcs
+left join role_cert_counts   rcc on rcc.role_id = vcs.role_id
+where  vcs.cert_status  = 'certified'
+  and  vcs.expires_at  is not null
+  and  vcs.expires_at   > now()
+  and  vcs.expires_at   < now() + interval '60 days';
+
+-- v_company_health: single-row weighted operational health score (0–100)
+-- Components: Coverage 35%, Currency 30%, Drift 20%, Expiry 15%
+create or replace view public.v_company_health as
+with role_cov as (
+  select
+    count(*) filter (where not below_threshold and certified_count > 0) as covered_roles,
+    count(*)                                                             as total_roles
+  from public.v_role_coverage
+),
+cert_cur as (
+  select
+    count(*) filter (where cert_status = 'certified' and not is_drifted)        as current_certs,
+    count(*) filter (where cert_status in ('certified','needs_recertification')) as total_active_certs
+  from public.v_cert_status
+),
+drift_e as (
+  select
+    count(*) filter (where cert_status = 'needs_recertification')               as drifted_count,
+    count(*) filter (where cert_status in ('certified','needs_recertification')) as cert_or_drifted
+  from public.v_cert_status
+),
+exp_u as (
+  select
+    count(*) filter (where expiring_critical and cert_status = 'certified') as critical_7d,
+    count(*) filter (where cert_status = 'certified')                       as total_certified
+  from public.v_cert_status
+)
+select
+  round(coalesce(rc.covered_roles::numeric / nullif(rc.total_roles, 0), 1), 3)         as coverage_score,
+  round(coalesce(cc.current_certs::numeric / nullif(cc.total_active_certs, 0), 1), 3)  as currency_score,
+  round(coalesce(1 - de.drifted_count::numeric / nullif(de.cert_or_drifted, 0), 1), 3) as drift_score,
+  round(coalesce(1 - eu.critical_7d::numeric / nullif(eu.total_certified, 0), 1), 3)   as expiry_score,
+  rc.covered_roles, rc.total_roles,
+  cc.current_certs, cc.total_active_certs,
+  de.drifted_count,
+  eu.critical_7d    as expiring_critical_count,
+  eu.total_certified,
+  round((
+    coalesce(rc.covered_roles::numeric / nullif(rc.total_roles, 0), 1) * 0.35 +
+    coalesce(cc.current_certs::numeric / nullif(cc.total_active_certs, 0), 1) * 0.30 +
+    coalesce(1 - de.drifted_count::numeric / nullif(de.cert_or_drifted, 0), 1) * 0.20 +
+    coalesce(1 - eu.critical_7d::numeric / nullif(eu.total_certified, 0), 1) * 0.15
+  ) * 100)           as health_score,
+  case
+    when round((
+      coalesce(rc.covered_roles::numeric/nullif(rc.total_roles,0),1)*0.35 +
+      coalesce(cc.current_certs::numeric/nullif(cc.total_active_certs,0),1)*0.30 +
+      coalesce(1-de.drifted_count::numeric/nullif(de.cert_or_drifted,0),1)*0.20 +
+      coalesce(1-eu.critical_7d::numeric/nullif(eu.total_certified,0),1)*0.15
+    )*100) >= 80 then 'healthy'
+    when round((
+      coalesce(rc.covered_roles::numeric/nullif(rc.total_roles,0),1)*0.35 +
+      coalesce(cc.current_certs::numeric/nullif(cc.total_active_certs,0),1)*0.30 +
+      coalesce(1-de.drifted_count::numeric/nullif(de.cert_or_drifted,0),1)*0.20 +
+      coalesce(1-eu.critical_7d::numeric/nullif(eu.total_certified,0),1)*0.15
+    )*100) >= 60 then 'needs_attention'
+    else 'at_risk'
+  end                as health_grade,
+  now()              as computed_at
+from role_cov rc, cert_cur cc, drift_e de, exp_u eu;
+
+
+-- ============================================================
+-- INTEGRATIONS TABLES (appended 2026-03-06)
+-- ============================================================
+
+-- Phone number on profiles (for SMS)
+alter table public.profiles
+  add column if not exists phone_number text;
+
+-- Twilio credentials + notification preferences per company
+create table if not exists public.notification_settings (
+  id                   uuid        primary key default uuid_generate_v4(),
+  company_id           uuid        not null unique references public.companies(id) on delete cascade,
+  twilio_account_sid   text,
+  twilio_auth_token    text,
+  twilio_from_number   text,
+  notify_expiry_7d     boolean     not null default true,
+  notify_expired       boolean     not null default true,
+  notify_pending_48h   boolean     not null default true,
+  created_at           timestamptz not null default now(),
+  updated_at           timestamptz not null default now()
+);
+
+-- Zapier (and generic) outbound webhook endpoints
+create table if not exists public.webhook_endpoints (
+  id               uuid        primary key default uuid_generate_v4(),
+  company_id       uuid        not null references public.companies(id) on delete cascade,
+  url              text        not null,
+  secret           text        not null,
+  label            text,
+  events           text[]      not null default array[
+    'cert.created','cert.revoked','cert.expired',
+    'role.below_threshold','health.at_risk'
+  ],
+  is_active        boolean     not null default true,
+  last_fired_at    timestamptz,
+  last_status_code integer,
+  created_at       timestamptz not null default now()
+);
+
+-- OAuth tokens + config for Gusto / Homebase / Slack
+create table if not exists public.integrations (
+  id               uuid        primary key default uuid_generate_v4(),
+  company_id       uuid        not null references public.companies(id) on delete cascade,
+  provider         text        not null check (provider in ('gusto','homebase','slack')),
+  access_token     text,
+  refresh_token    text,
+  token_expires_at timestamptz,
+  config           jsonb       not null default '{}'::jsonb,
+  connected_at     timestamptz,
+  last_sync_at     timestamptz,
+  created_at       timestamptz not null default now(),
+  updated_at       timestamptz not null default now(),
+  unique (company_id, provider)
+);
+
+-- Notification deduplication + audit trail
+create table if not exists public.notification_log (
+  id          uuid        primary key default uuid_generate_v4(),
+  company_id  uuid        not null references public.companies(id) on delete cascade,
+  channel     text        not null check (channel in ('sms','slack')),
+  recipient   text        not null,
+  message     text        not null,
+  event_type  text        not null,
+  employee_id uuid,
+  role_id     uuid,
+  status      text        not null default 'sent' check (status in ('sent','failed')),
+  error       text,
+  created_at  timestamptz not null default now()
+);
+
+alter table public.notification_settings  enable row level security;
+alter table public.webhook_endpoints       enable row level security;
+alter table public.integrations            enable row level security;
+alter table public.notification_log        enable row level security;
+
+create policy "company_isolation" on public.notification_settings
+  using (company_id = public.my_company_id());
+create policy "company_isolation" on public.webhook_endpoints
+  using (company_id = public.my_company_id());
+create policy "company_isolation" on public.integrations
+  using (company_id = public.my_company_id());
+create policy "company_isolation" on public.notification_log
+  using (company_id = public.my_company_id());

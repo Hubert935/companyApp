@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { fireWebhookEvent } from '@/lib/integrations/webhook'
 
 interface CertifyBody {
   employeeId: string
@@ -64,6 +65,15 @@ export async function POST(request: Request) {
       .eq('role_id', roleId)
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    // Fire webhook event asynchronously — don't block the response
+    fireWebhookEvent(profile.company_id, 'cert.created', {
+      employee_id: employeeId,
+      role_id: roleId,
+      certified_at: new Date().toISOString(),
+      certified_by: user.id,
+      expires_at: expiresAt ?? null,
+    }).catch(() => { /* best-effort */ })
 
     return NextResponse.json({ success: true })
   } catch (err: unknown) {

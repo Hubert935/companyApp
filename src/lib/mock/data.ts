@@ -66,6 +66,7 @@ export const profiles: Profile[] = [
     company_id: MOCK_COMPANY_ID,
     role: 'owner',
     invited_by: null,
+    phone_number: null,
     created_at: '2024-01-01T00:00:00Z',
   },
   {
@@ -75,6 +76,7 @@ export const profiles: Profile[] = [
     company_id: MOCK_COMPANY_ID,
     role: 'manager',
     invited_by: MOCK_OWNER_ID,
+    phone_number: null,
     created_at: '2024-01-05T00:00:00Z',
   },
   {
@@ -84,6 +86,7 @@ export const profiles: Profile[] = [
     company_id: MOCK_COMPANY_ID,
     role: 'employee',
     invited_by: MOCK_OWNER_ID,
+    phone_number: null,
     created_at: '2024-01-10T00:00:00Z',
   },
   {
@@ -93,6 +96,7 @@ export const profiles: Profile[] = [
     company_id: MOCK_COMPANY_ID,
     role: 'employee',
     invited_by: MOCK_MGR_ID,
+    phone_number: null,
     created_at: '2024-01-15T00:00:00Z',
   },
 ]
@@ -223,6 +227,7 @@ export const company_roles: CompanyRole[] = [
     name: 'Cleaner',
     description: 'General cleaning staff. Must be trained on opening procedures and deep clean protocols.',
     color: 'blue',
+    minimum_certified_count: 2,
     created_at: '2024-01-01T00:00:00Z',
   },
   {
@@ -231,6 +236,7 @@ export const company_roles: CompanyRole[] = [
     name: 'Shift Supervisor',
     description: 'Responsible for the full shift. Must complete all Cleaner training plus safety orientation.',
     color: 'purple',
+    minimum_certified_count: 2,
     created_at: '2024-01-01T00:00:00Z',
   },
 ]

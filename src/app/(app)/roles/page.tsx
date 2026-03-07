@@ -3,10 +3,9 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Plus, ShieldCheck } from 'lucide-react'
 import Button from '@/components/ui/Button'
-import Badge from '@/components/ui/Badge'
 import EmptyState from '@/components/ui/EmptyState'
-import type { BadgeVariant } from '@/components/ui/Badge'
-import { getCertStatus } from '@/types'
+import RoleCoverageCard from '@/components/roles/RoleCoverageCard'
+import type { RoleCoverageRow } from '@/types/intelligence'
 
 export default async function RolesPage() {
   const supabase = await createClient()
@@ -22,55 +21,27 @@ export default async function RolesPage() {
   if (!profile || !['owner', 'manager'].includes(profile.role)) redirect('/dashboard')
   if (!profile.company_id) redirect('/auth/login')
 
-  const [rolesResult, empRolesResult] = await Promise.all([
-    supabase
-      .from('company_roles')
-      .select('*, role_sops(sop_id, position)')
-      .eq('company_id', profile.company_id)
-      .order('name'),
+  // Single query to v_role_coverage — replaces the double-query pattern
+  const { data: coverageData } = await supabase
+    .from('v_role_coverage')
+    .select('*')
+    .order('role_name')
 
-    supabase
-      .from('employee_roles')
-      .select('role_id, employee_id, training_completed_at, certified_at, expires_at, role_snapshot, revoked_at')
-      .in(
-        'role_id',
-        // We'll filter client-side; select all company role ids after fetch
-        (await supabase
-          .from('company_roles')
-          .select('id')
-          .eq('company_id', profile.company_id)
-        ).data?.map((r) => r.id) ?? []
-      ),
-  ])
+  const coverage = (coverageData ?? []) as unknown as RoleCoverageRow[]
 
-  type RoleRow = {
-    id: string
-    name: string
-    description: string | null
-    color: string
-    created_at: string
-    role_sops: { sop_id: string; position: number }[]
-  }
-
-  type EmpRoleRow = {
-    role_id: string
-    employee_id: string
-    training_completed_at: string | null
-    certified_at: string | null
-    expires_at: string | null
-    role_snapshot: unknown
-    revoked_at: string | null
-  }
-
-  const roles = (rolesResult.data ?? []) as unknown as RoleRow[]
-  const empRoles = (empRolesResult.data ?? []) as unknown as EmpRoleRow[]
+  // Summary stats for the strip
+  const fullyCovered  = coverage.filter((r) => !r.below_threshold && r.certified_count > 0).length
+  const spofCount     = coverage.filter((r) => r.is_spof).length
+  const belowCount    = coverage.filter((r) => r.below_threshold && !r.is_spof).length
+  const hasRiskRoles  = spofCount > 0 || belowCount > 0
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Roles</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             Define job functions and the SOPs required to certify capability
           </p>
         </div>
@@ -82,7 +53,7 @@ export default async function RolesPage() {
         </Link>
       </div>
 
-      {roles.length === 0 ? (
+      {coverage.length === 0 ? (
         <EmptyState
           icon={ShieldCheck}
           title="No roles yet"
@@ -97,72 +68,38 @@ export default async function RolesPage() {
           }
         />
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
-          {roles.map((role) => {
-            const sopIds = (role.role_sops ?? []).map((rs) => rs.sop_id)
-            const roleEmpRows = empRoles.filter((er) => er.role_id === role.id)
+        <>
+          {/* Coverage summary strip */}
+          <div className={`rounded-2xl px-5 py-3 flex items-center gap-6 flex-wrap text-sm ${
+            hasRiskRoles
+              ? 'bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/50'
+              : 'bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700'
+          }`}>
+            <span className="font-medium text-gray-700 dark:text-gray-300">
+              {coverage.length} role{coverage.length !== 1 ? 's' : ''}
+            </span>
+            <span className="text-green-700 dark:text-green-400 font-medium">
+              {fullyCovered} fully covered
+            </span>
+            {spofCount > 0 && (
+              <span className="text-red-700 dark:text-red-400 font-medium">
+                {spofCount} SPOF
+              </span>
+            )}
+            {belowCount > 0 && (
+              <span className="text-orange-700 dark:text-orange-400 font-medium">
+                {belowCount} below threshold
+              </span>
+            )}
+          </div>
 
-            const certifiedCount = roleEmpRows.filter((er) => {
-              const status = getCertStatus(
-                {
-                  revoked_at: er.revoked_at,
-                  certified_at: er.certified_at,
-                  expires_at: er.expires_at,
-                  role_snapshot: er.role_snapshot as Parameters<typeof getCertStatus>[0]['role_snapshot'],
-                  training_completed_at: er.training_completed_at,
-                },
-                sopIds
-              )
-              return status === 'certified'
-            }).length
-
-            const pendingCount = roleEmpRows.filter((er) => {
-              const status = getCertStatus(
-                {
-                  revoked_at: er.revoked_at,
-                  certified_at: er.certified_at,
-                  expires_at: er.expires_at,
-                  role_snapshot: er.role_snapshot as Parameters<typeof getCertStatus>[0]['role_snapshot'],
-                  training_completed_at: er.training_completed_at,
-                },
-                sopIds
-              )
-              return status === 'pending_review'
-            }).length
-
-            return (
-              <Link
-                key={role.id}
-                href={`/roles/${role.id}`}
-                className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-5 hover:border-blue-300 hover:shadow-sm transition-all group"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                    style={{ backgroundColor: `var(--color-${role.color}-100, #eff6ff)` }}
-                  >
-                    <ShieldCheck className={`w-5 h-5 text-${role.color}-600 dark:text-${role.color}-400`} />
-                  </div>
-                  <Badge variant={role.color as BadgeVariant}>{role.color}</Badge>
-                </div>
-
-                <h3 className="font-semibold text-gray-900 dark:text-white mb-1">{role.name}</h3>
-                {role.description && (
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-3 line-clamp-2">{role.description}</p>
-                )}
-
-                <div className="flex items-center gap-2 flex-wrap mt-3">
-                  <Badge variant="blue">{sopIds.length} SOP{sopIds.length !== 1 ? 's' : ''}</Badge>
-                  {certifiedCount > 0 && (
-                    <Badge variant="green">{certifiedCount} certified</Badge>
-                  )}
-                  {pendingCount > 0 && (
-                    <Badge variant="orange">{pendingCount} pending review</Badge>
-                  )}
-                </div>
-              </Link>
-            )
-          })}
-        </div>
+          {/* Role cards */}
+          <div className="grid gap-4 md:grid-cols-2">
+            {coverage.map((role) => (
+              <RoleCoverageCard key={role.role_id} role={role} />
+            ))}
+          </div>
+        </>
       )}
     </div>
   )
